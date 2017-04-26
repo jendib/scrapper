@@ -13,8 +13,9 @@ import java.nio.charset.Charset;
 
 public class HttpUtil {
     public static String readUrlIntoString(String url, Charset charset) {
+        CloseableHttpClient httpClient = null;
         try {
-            CloseableHttpClient httpClient = HttpClientBuilder.create()
+            httpClient = HttpClientBuilder.create()
                     .setRetryHandler((exception, executionCount, context) -> executionCount < 5)
                     .setDefaultRequestConfig(RequestConfig.custom()
                             .setConnectTimeout(10000)
@@ -31,6 +32,14 @@ public class HttpUtil {
             return EntityUtils.toString(entity, charset);
         } catch (IOException e) {
             return null;
+        } finally {
+            if (httpClient != null) {
+                try {
+                    httpClient.close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
         }
     }
 }
