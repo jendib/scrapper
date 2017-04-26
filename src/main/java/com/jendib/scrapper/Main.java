@@ -1,11 +1,6 @@
 package com.jendib.scrapper;
 
-import com.google.common.collect.Lists;
-
-import java.nio.charset.Charset;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -13,6 +8,8 @@ import java.util.regex.Pattern;
 
 public class Main {
     private static Pattern GLOSSARY_URL_PATTERN = Pattern.compile("<a href=\"(/glossary/users.*?)\"");
+    private static Pattern PROFILE_URL_PATTERN = Pattern.compile("<a href=\"(/p/.*?)\"");
+    private static Pattern NAME_PATTERN = Pattern.compile("<h1>(.*?)</h1>");
 
     public static void main(String[] args) throws Exception {
         // Download letter pages
@@ -21,42 +18,34 @@ public class Main {
         for (char letter : alphabet) {
             downloader.add("http://copainsdavant.linternaute.com/glossary/users/" + letter);
         }
-
-        // Download first level pages
         List<Future<String>> futureList = downloader.awaitTermination(1, TimeUnit.MINUTES);
-        downloader = new Downloader();
-        for (Future<String> future : futureList) {
-            String content = future.get();
-            Matcher matcher = GLOSSARY_URL_PATTERN.matcher(content);
-            while (matcher.find()) {
-                downloader.add("http://copainsdavant.linternaute.com" + matcher.group(1));
-            }
-        }
 
-        // Download second level pages
-        futureList = downloader.awaitTermination(5, TimeUnit.MINUTES);
-        downloader = new Downloader();
+        // Download glossary pages (2 levels)
+        futureList = downloadPages(GLOSSARY_URL_PATTERN, futureList);
+        futureList = downloadPages(GLOSSARY_URL_PATTERN, futureList);
+
+        // Download profile page
+        futureList = downloadPages(PROFILE_URL_PATTERN, futureList);
+
+        // Parse profiles
         for (Future<String> future : futureList) {
             String content = future.get();
-            Matcher matcher = GLOSSARY_URL_PATTERN.matcher(content);
-            while (matcher.find()) {
-                downloader.add("http://copainsdavant.linternaute.com" + matcher.group(1));
+            Matcher matcher = NAME_PATTERN.matcher(content);
+            if (matcher.find()) {
+                System.out.println(matcher.group(1));
             }
         }
     }
 
-    static class Downloader {
-        private ExecutorService executorService = Executors.newFixedThreadPool(100);
-        private List<Future<String>> futureList = Lists.newArrayList();
-
-        private void add(String url) {
-            futureList.add(executorService.submit(() -> HttpUtil.readUrlIntoString(url, Charset.forName("UTF-8"))));
+    private static List<Future<String>> downloadPages(Pattern pattern, List<Future<String>> futureList) throws Exception {
+        Downloader downloader = new Downloader();
+        for (Future<String> future : futureList) {
+            String content = future.get();
+            Matcher matcher = pattern.matcher(content);
+            while (matcher.find()) {
+                downloader.add("http://copainsdavant.linternaute.com" + matcher.group(1));
+            }
         }
-
-        List<Future<String>> awaitTermination(long timeout, TimeUnit unit) throws Exception {
-            executorService.shutdown();
-            executorService.awaitTermination(timeout, unit);
-            return futureList;
-        }
+        return downloader.awaitTermination(7, TimeUnit.DAYS);
     }
 }

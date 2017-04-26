@@ -15,6 +15,7 @@ import java.nio.charset.Charset;
 
 class HttpUtil {
     private static CloseableHttpClient httpClient;
+    private static IdleConnectionMonitorThread connectionMonitorThread;
     static {
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
         connectionManager.setMaxTotal(100);
@@ -22,13 +23,16 @@ class HttpUtil {
 
         httpClient = HttpClientBuilder.create()
                 .setConnectionManager(connectionManager)
-                .setRetryHandler((exception, executionCount, context) -> executionCount < 5)
+                .setRetryHandler((exception, executionCount, context) -> executionCount < 100)
                 .setDefaultRequestConfig(RequestConfig.custom()
-                        .setConnectTimeout(10000)
-                        .setConnectionRequestTimeout(15000)
-                        .setSocketTimeout(10000)
+                        .setConnectTimeout(2000)
+                        .setConnectionRequestTimeout(2000)
+                        .setSocketTimeout(2000)
                         .build())
                 .build();
+
+        connectionMonitorThread = new IdleConnectionMonitorThread(connectionManager);
+        connectionMonitorThread.start();
     }
 
     static String readUrlIntoString(String url, Charset charset) {
