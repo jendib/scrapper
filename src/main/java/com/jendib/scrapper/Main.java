@@ -1,8 +1,5 @@
 package com.jendib.scrapper;
 
-import java.util.List;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,16 +13,16 @@ public class Main {
         Downloader downloader = new Downloader();
         char[] alphabet = "abcdefghijklmnopqrstuvwxyz".toCharArray();
         for (char letter : alphabet) {
-            downloader.add("http://copainsdavant.linternaute.com/glossary/users/" + letter);
+            downloader.add("http://copainsdavant.linternaute.com/glossary/users/" + letter,
+                    (url, content) -> downloadGlossaryPages(downloader, GLOSSARY_URL_PATTERN, content));
         }
-        List<Future<String>> futureList = downloader.awaitTermination(1, TimeUnit.MINUTES);
 
-        // Download glossary pages (2 levels)
-        futureList = downloadPages(GLOSSARY_URL_PATTERN, futureList);
-        futureList = downloadPages(GLOSSARY_URL_PATTERN, futureList);
+        while (true) {
+            Thread.sleep(5000);
+        }
 
         // Download profile page
-        futureList = downloadPages(PROFILE_URL_PATTERN, futureList);
+        /*futureList = downloadPages(PROFILE_URL_PATTERN, futureList);
 
         // Parse profiles
         for (Future<String> future : futureList) {
@@ -34,18 +31,20 @@ public class Main {
             if (matcher.find()) {
                 System.out.println(matcher.group(1));
             }
-        }
+        }*/
     }
 
-    private static List<Future<String>> downloadPages(Pattern pattern, List<Future<String>> futureList) throws Exception {
-        Downloader downloader = new Downloader();
-        for (Future<String> future : futureList) {
-            String content = future.get();
-            Matcher matcher = pattern.matcher(content);
-            while (matcher.find()) {
-                downloader.add("http://copainsdavant.linternaute.com" + matcher.group(1));
-            }
+    private static void downloadGlossaryPages(Downloader downloader, Pattern pattern, String content) {
+        Matcher matcher = pattern.matcher(content);
+        while (matcher.find()) {
+            downloader.add("http://copainsdavant.linternaute.com" + matcher.group(1), (url0, content0) -> {
+                if (url0.contains("/p/")) {
+                    // TODO Parse profile page
+                    System.out.println("Profile page: " + url0);
+                } else {
+                    downloadGlossaryPages(downloader, pattern, content0);
+                }
+            });
         }
-        return downloader.awaitTermination(7, TimeUnit.DAYS);
     }
 }
